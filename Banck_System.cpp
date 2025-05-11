@@ -92,40 +92,32 @@ struct Transaction {
 };
 
 //======================================= Client ============================================
+
 class Client : public Person {
-    double balance;
     Visa visa;
     vector<Transaction> transactionHistory;
 public:
     Client(int _id, string _name, string _pass, double _balance)
-        : Person(_id, _name, _pass), visa(_id, _balance) {
-        if (_balance >= 1500)
-            balance = _balance;
-        else
-            balance = 1500;
-        visa.setBalance(balance);
-    }
+        : Person(_id, _name, _pass), visa(_id, (_balance >= 1500) ? _balance : 1500) {}
 
     void setBalance(double _balance) {
         if (_balance >= 1500)
-            balance = _balance;
-        visa.setBalance(balance);
+            visa.setBalance(_balance);
     }
-    double getBalance() const { return balance; }
+
+    double getBalance() const { return visa.getBalance(); }
     Visa& getVisa() { return visa; }
 
     void deposit(double amount) {
         if (amount <= 0) throw runtime_error("Deposit amount must be positive");
-        balance += amount;
-        visa.setBalance(balance);
-        transactionHistory.emplace_back(amount, TransactionType::Deposit,name);
+        visa.setBalance(visa.getBalance() + amount);
+        transactionHistory.emplace_back(amount, TransactionType::Deposit, name);
     }
 
     void withdraw(double amount) {
         if (amount <= 0) throw runtime_error("Withdrawal amount must be positive");
-        if (balance >= amount) {
-            balance -= amount;
-            visa.setBalance(balance);
+        if (visa.getBalance() >= amount) {
+            visa.setBalance(visa.getBalance() - amount);
             transactionHistory.emplace_back(amount, TransactionType::Withdraw, name);
         }
         else {
@@ -135,11 +127,9 @@ public:
 
     void transferTo(Client* other, double amount) {
         if (amount <= 0) throw runtime_error("Transfer amount must be positive");
-        if (balance >= amount) {
-            balance -= amount;
-            other->balance += amount;
-            visa.setBalance(balance);
-            other->visa.setBalance(other->balance);
+        if (visa.getBalance() >= amount) {
+            visa.setBalance(visa.getBalance() - amount);
+            other->visa.setBalance(other->visa.getBalance() + amount);
             visa.incrementTransfer();
             transactionHistory.emplace_back(amount, TransactionType::TransferTo, other->getName(), other->getId());
             other->transactionHistory.emplace_back(amount, TransactionType::TransferFrom, name, id);
@@ -158,33 +148,32 @@ public:
         cout << "Transaction History:\n";
         for (const auto& t : transactionHistory) {
             cout << "Type: " << to_string(t.type) << ", Amount: " << t.amount;
-			cout << ", Name: " << t.name;
+            cout << ", Name: " << t.name;
             if (t.recipientId != -1) cout << ", Recipient ID: " << t.recipientId;
             cout << endl;
         }
     }
 
     double calculateBenefits() const override {
-        return balance * 0.02; // 2% annual interest, monthly portion
+        return visa.getBalance() * 0.02;
     }
 
     void applyMonthlyUpdate() override {
-        double interest = calculateBenefits() / 12; // Monthly interest
-        balance += interest;
-        visa.setBalance(balance);
+        double interest = calculateBenefits() / 12;
+        visa.setBalance(visa.getBalance() + interest);
         transactionHistory.emplace_back(interest, TransactionType::Interest);
         updateFile();
     }
 
     void display() const override {
-        cout << "ID: " << id << " Name: " << name << " Balance: " << balance << endl;
+        cout << "ID: " << id << " Name: " << name << " Balance: " << visa.getBalance() << endl;
         visa.display();
     }
 
     void saveToFile() {
         ofstream file("Clients.txt", ios::app);
         if (!file.is_open()) throw runtime_error("Unable to open Clients.txt for writing");
-        file << id << "," << name << "," << password << "," << balance
+        file << id << "," << name << "," << password << "," << visa.getBalance()
             << "," << visa.getTransferCount() << endl;
         file.close();
     }
@@ -212,7 +201,7 @@ public:
             try {
                 if (stoi(tempId) == id) {
                     tempFile << id << "," << name << "," << password << ","
-                        << balance << "," << visa.getTransferCount() << endl;
+                        << visa.getBalance() << "," << visa.getTransferCount() << endl;
                     found = true;
                 }
                 else {
@@ -226,7 +215,7 @@ public:
 
         if (!found) {
             tempFile << id << "," << name << "," << password << ","
-                << balance << "," << visa.getTransferCount() << endl;
+                << visa.getBalance() << "," << visa.getTransferCount() << endl;
         }
 
         inFile.close();
@@ -236,7 +225,6 @@ public:
         rename("temp.txt", "Clients.txt");
     }
 };
-
 //======================================= Employee ============================================
 class Employee : public Person {
     double salary;
